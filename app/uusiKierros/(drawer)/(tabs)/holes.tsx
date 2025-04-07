@@ -79,7 +79,7 @@ export default function HoleScreen() {
     
                 if (shouldEndRound === "true") {
                     await AsyncStorage.removeItem("endRoundTrigger");
-                    handleSaveRound(); // Tallennetaan ja poistutaan
+                    
                 }
             } catch (error) {
                 console.error("Virhe ladattaessa tallennettua kierrosta:", error);

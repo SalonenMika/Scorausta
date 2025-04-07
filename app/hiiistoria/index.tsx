@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, Button, Alert } from "react-native";
-import { getRounds, deleteRoundById, getHolesByRoundId} from "@/utils/database";
+import { getRounds, deleteRoundById, getRoundById } from "@/utils/database";
 import { Link } from 'expo-router';
 
 interface Round {
@@ -8,28 +8,36 @@ interface Round {
     course_name: string;
     club_name: string;
     date: string;
-    scores: string;
+    scores: string; // JSON-muotoinen merkkijono, joka sisältää lyöntitiedot
 }
 
+interface RoundWithTotalStrokes extends Round {
+    totalStrokes: number; // Lisätty kenttä, joka sisältää lyöntien kokonaismäärän
+}
+
+
 export default function HistoryScreen() {
-    const [rounds, setRounds] = useState<Round[]>([]);
-    const [selectedRound, setSelectedRound] = useState<Round | null>(null); // Modaali-ikkunaa varten
+    const [rounds, setRounds] = useState<RoundWithTotalStrokes[]>([]); // Päivitetty tyyppi
+    const [selectedRound, setSelectedRound] = useState<RoundWithTotalStrokes | null>(null); // Päivitetty tyyppi
 
     useEffect(() => {
         const fetchRounds = async () => {
             try {
                 const rawData = await getRounds();
+
                 const roundsWithScores = await Promise.all(
                     rawData.map(async (round: any) => {
                         // Haetaan väylien tiedot kierrokselle
-                        const holes = await getHolesByRoundId(round.id);
-                        
-                        // Lasketaan lyöntien määrä väyliltä
+                        const holes = await getRoundById(round.id);
+
                         let totalStrokes = 0;
-                        holes.forEach((hole: any) => {
-                            totalStrokes += hole.strokes || 0;
-                        });
-                        
+                        if (holes && holes.holes) {
+                            // Lasketaan lyöntien määrä väyliltä
+                            totalStrokes = holes.holes.reduce((sum: number, hole: any) => {
+                                return sum + (hole.strokes ?? 0); // Lisää lyönnit
+                            }, 0);
+                        }
+
                         return {
                             ...round,
                             totalStrokes, // Lisätään lyöntien määrä kierrokseen
@@ -79,20 +87,6 @@ export default function HistoryScreen() {
                         minute: "2-digit",
                     });
 
-                    let totalStrokes = 0;
-                    // Tarkistetaan, että scores ei ole null tai tyhjä
-                    if (item.scores) {
-                        try {
-                            const scores: Record<string, { strokes: number }> = JSON.parse(item.scores);
-                            totalStrokes = Object.values(scores).reduce(
-                                (sum, score) => sum + score.strokes,
-                                0
-                            );
-                        } catch (error) {
-                            console.error("Virhe parsittaessa lyöntejä kierrokselle:", item.id, error);
-                        }
-                    }
-
                     return (
                         <Link href={{
                             pathname: `/hiiistoria/round/[id]`,
@@ -102,7 +96,7 @@ export default function HistoryScreen() {
                                 onLongPress={() => setSelectedRound(item)}>
                                 <Text style={styles.date}>{formattedDate} klo {formattedTime}</Text>
                                 <Text style={styles.course}>{item.course_name} (ID: {item.id})</Text>
-                                <Text style={styles.strokes}>Lyönnit yhteensä: {totalStrokes}</Text>
+                                <Text style={styles.strokes}>Lyönnit yhteensä: {item.totalStrokes}</Text>
                             </TouchableOpacity>
                         </Link>
                     );

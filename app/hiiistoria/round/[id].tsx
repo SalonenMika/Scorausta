@@ -3,13 +3,22 @@ import { useState, useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { getRoundById } from "@/utils/database";
 
+interface Hole {
+    hole_number: number;
+    par: number;
+    pituus: number;
+    hcp: number;
+    strokes: number | null;
+    putts: number | null;
+    gir: boolean | null;
+}
 
 interface Round {
     id: number;
     course_name: string;
     club_name: string;
     date: string;
-    scores: string; // JSON-muodossa tallennettu tulokset
+    holes: Hole[];
 }
 
 export default function RoundDetailScreen() {
@@ -20,10 +29,9 @@ export default function RoundDetailScreen() {
         const fetchRound = async () => {
             try {
                 const data = await getRoundById(Number(id));
-                
-                // ✅ Tarkistetaan, että data on oikeantyyppinen
-                if (data && typeof data === "object" && "id" in data && "course_name" in data) {
-                    setRound(data as Round);
+                console.log("Fetched round data:", data);
+                if (data) {
+                    setRound(data);
                 } else {
                     setRound(null); // Jos tietoa ei löydy, pidetään tila `null`:ina
                 }
@@ -37,14 +45,7 @@ export default function RoundDetailScreen() {
     }, [id]);
 
     if (!round) {
-        return <Text>Ladataan...</Text>;
-    }
-
-    let scores = {};
-    try {
-        scores = JSON.parse(round.scores);
-    } catch (error) {
-        console.error("Virhe tulosten jäsentämisessä:", error);
+        return <Text style={styles.loadingText}>Ladataan...</Text>;
     }
 
     return (
@@ -52,15 +53,20 @@ export default function RoundDetailScreen() {
             <View style={styles.card}>
                 <Text style={styles.title}>Kierros: {round.course_name}</Text>
                 <Text style={styles.subtitle}>Seura: {round.club_name}</Text>
-                <Text style={styles.date}>Päivämäärä: {round.date}</Text>
+                <Text style={styles.date}>Päivämäärä: {new Date(round.date).toLocaleString("fi-FI")}</Text>
             </View>
-            
+
             <View style={styles.resultsContainer}>
-                <Text style={styles.resultsTitle}>Tulokset:</Text>
-                {Object.entries(scores).map(([hole, score]: any) => (
-                    <View key={hole} style={styles.resultItem}>
-                        <Text style={styles.holeText}>Väylä {hole}</Text>
-                        <Text style={styles.scoreText}>Lyöntiä: {score.strokes}</Text>
+                <Text style={styles.resultsTitle}>Väyläkohtaiset tulokset:</Text>
+                {round.holes.map((hole) => (
+                    <View key={hole.hole_number} style={styles.resultItem}>
+                        <Text style={styles.holeText}>Väylä {hole.hole_number}</Text>
+                        <Text style={styles.scoreText}>
+                            Par: {hole.par} | Pituus: {hole.pituus}m | HCP: {hole.hcp}
+                        </Text>
+                        <Text style={styles.scoreText}>
+                            Lyöntejä: {hole.strokes ?? "Ei tietoa"}, Putteja: {hole.putts ?? "Ei tietoa"}, GIR: {hole.gir ? "✅" : "❌"}
+                        </Text>
                     </View>
                 ))}
             </View>
@@ -79,10 +85,6 @@ const styles = StyleSheet.create({
         borderRadius: 10,
         padding: 20,
         marginBottom: 20,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
         elevation: 5,
     },
     title: {
@@ -120,10 +122,6 @@ const styles = StyleSheet.create({
         padding: 15,
         borderRadius: 8,
         marginBottom: 10,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 5,
         elevation: 3,
     },
     holeText: {
@@ -136,4 +134,3 @@ const styles = StyleSheet.create({
         color: "#666",
     },
 });
-

@@ -3,7 +3,7 @@ export function GET() {
         { 
             id: 1,
             club_name: "Jyvas-golf",
-            course_name: "Course No. 1",
+            course_name: "Jyväs-Golf",
             location: {
                 address: "123 Golf Course Lane, Jyväskylä, Finland",
                 city: "Jyväskylä",
@@ -22,7 +22,7 @@ export function GET() {
         { 
             id: 2,
             club_name: "Muuramegolf",
-            course_name: "Course No. 2",
+            course_name: "Muurame Golf",
             location: {
                 address: "tiiboxintie 2, Muurame, Finland",
                 city: "Muurame",
