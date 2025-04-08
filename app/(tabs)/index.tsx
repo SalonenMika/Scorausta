@@ -4,7 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Link } from 'expo-router';
 import { initDatabase } from "@/utils/database";
 import Button from '@/components/Button';
-import { BlurView } from 'expo-blur';  // Käytämme expo-blur-komponenttia
+import ViimeisinKierros from '@/components/ViimeisinKierros';
 import { LinearGradient } from 'expo-linear-gradient';  // Gradientti reunoille
 
 export default function Index() {
@@ -23,6 +23,8 @@ export default function Index() {
                 >
                 </LinearGradient>
             </View>
+            {/* StatsBox komponentti lisätty ylös */}
+            <ViimeisinKierros />
             <View style={styles.buttonsContainer}>
                 <View style={styles.row}>
                     <View style={styles.buttonContainer}>

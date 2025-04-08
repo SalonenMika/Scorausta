@@ -4,6 +4,7 @@
     "slug": "Scorausta",
     "version": "1.0.0",
     "orientation": "portrait",
+    "sdkVersion": "52.0.0",
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",

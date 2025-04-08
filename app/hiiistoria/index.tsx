@@ -3,6 +3,11 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, Button, Aler
 import { getRounds, deleteRoundById, getRoundById } from "@/utils/database";
 import { Link } from 'expo-router';
 
+interface Hole {
+    par: number;
+    strokes: number | null; // Väylän lyöntimäärä
+}
+
 interface Round {
     id: number;
     course_name: string;
@@ -13,12 +18,13 @@ interface Round {
 
 interface RoundWithTotalStrokes extends Round {
     totalStrokes: number; // Lisätty kenttä, joka sisältää lyöntien kokonaismäärän
+    totalPar: number; // Lisätty kenttä, joka sisältää kentän kokonaisparin pelatuista väylistä
+    scoreDifference: number; // Kenttä, joka laskee eron lyöntien ja parin välillä
 }
 
-
 export default function HistoryScreen() {
-    const [rounds, setRounds] = useState<RoundWithTotalStrokes[]>([]); // Päivitetty tyyppi
-    const [selectedRound, setSelectedRound] = useState<RoundWithTotalStrokes | null>(null); // Päivitetty tyyppi
+    const [rounds, setRounds] = useState<RoundWithTotalStrokes[]>([]);
+    const [selectedRound, setSelectedRound] = useState<RoundWithTotalStrokes | null>(null);
 
     useEffect(() => {
         const fetchRounds = async () => {
@@ -27,20 +33,27 @@ export default function HistoryScreen() {
 
                 const roundsWithScores = await Promise.all(
                     rawData.map(async (round: any) => {
-                        // Haetaan väylien tiedot kierrokselle
                         const holes = await getRoundById(round.id);
 
                         let totalStrokes = 0;
+                        let totalPar = 0;
                         if (holes && holes.holes) {
-                            // Lasketaan lyöntien määrä väyliltä
-                            totalStrokes = holes.holes.reduce((sum: number, hole: any) => {
-                                return sum + (hole.strokes ?? 0); // Lisää lyönnit
-                            }, 0);
+                            // Lasketaan lyöntien ja parin määrä pelatuista väylistä
+                            holes.holes.forEach((hole: Hole) => {
+                                if (hole.strokes !== null) { // Lasketaan vain väylät, joilla on lyönnit
+                                    totalStrokes += hole.strokes ?? 0;
+                                    totalPar += hole.par;
+                                }
+                            });
                         }
+
+                        const scoreDifference = totalStrokes - totalPar; // Laske ero lyöntien ja parin välillä
 
                         return {
                             ...round,
-                            totalStrokes, // Lisätään lyöntien määrä kierrokseen
+                            totalStrokes,
+                            totalPar,
+                            scoreDifference, // Lisää tulos
                         };
                     })
                 );
@@ -53,13 +66,12 @@ export default function HistoryScreen() {
         fetchRounds();
     }, []);
 
-    // Poista kierros
     const handleDelete = async () => {
         if (selectedRound) {
             try {
                 await deleteRoundById(selectedRound.id);
-                setRounds(rounds.filter((round) => round.id !== selectedRound.id)); // Päivitä lista
-                setSelectedRound(null); // Sulje modaali
+                setRounds(rounds.filter((round) => round.id !== selectedRound.id));
+                setSelectedRound(null);
             } catch (error) {
                 Alert.alert("Virhe", "Kierroksen poistaminen epäonnistui.");
             }
@@ -74,7 +86,7 @@ export default function HistoryScreen() {
                 keyExtractor={(item) => item.id.toString()}
                 renderItem={({ item }) => {
                     const localDate = new Date(item.date);
-                    localDate.setHours(localDate.getHours()); // Korjaa Suomen ajan
+                    localDate.setHours(localDate.getHours());
 
                     const formattedDate = localDate.toLocaleDateString("fi-FI", {
                         weekday: "short",
@@ -92,17 +104,21 @@ export default function HistoryScreen() {
                             pathname: `/hiiistoria/round/[id]`,
                             params: { id: item.id },
                         }} asChild>
-                            <TouchableOpacity style={styles.roundItem}
-                                onLongPress={() => setSelectedRound(item)}>
+                            <TouchableOpacity style={styles.roundItem} onLongPress={() => setSelectedRound(item)}>
                                 <Text style={styles.date}>{formattedDate} klo {formattedTime}</Text>
                                 <Text style={styles.course}>{item.course_name} (ID: {item.id})</Text>
-                                <Text style={styles.strokes}>Lyönnit yhteensä: {item.totalStrokes}</Text>
+                                <View style={styles.scoreContainer}>
+                                    <Text style={styles.strokes}>Lyönnit yhteensä: {item.totalStrokes}</Text>
+                                    <Text style={styles.scoreDifference}>
+                                        {item.scoreDifference >= 0 ? `+${item.scoreDifference}` : item.scoreDifference}
+                                    </Text>
+                                </View>
                             </TouchableOpacity>
                         </Link>
                     );
                 }}
             />
-            {/* 📌 Poistomodaali */}
+            {/* Poistomodaali */}
             <Modal visible={selectedRound !== null} transparent animationType="slide">
                 <View style={styles.modalContainer}>
                     <View style={styles.modalContent}>
@@ -142,9 +158,19 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: "#555",
     },
+    scoreContainer: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+    },
     strokes: {
         fontSize: 14,
         color: "#007BFF",
+    },
+    scoreDifference: {
+        fontSize: 24,
+        fontWeight: "bold",
+        color: "#FF0000",
     },
     modalContainer: {
         flex: 1,

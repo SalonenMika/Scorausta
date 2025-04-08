@@ -1,175 +1,191 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getLastRound } from "@/utils/database"; // ✅ Haetaan viimeisin kierros tietokannasta
+import { getRounds } from "@/utils/database"; // Lisää tarvittavat tuonnit
 
-interface Kierros {
-    course_name: string;
-    club_name: string;
-    date: string;
-    scores: { hole: number; strokes: number; putts: number; gir: boolean }[];
-}
+export default function StatsBox() {
+  const [latestRound, setLatestRound] = useState<any | null>(null);
 
-interface Vayla {
-    par: number;
-    pituus: number;
-    hcp: number;
-}
+  useEffect(() => {
+    const fetchLatestRound = async () => {
+      try {
+        const rounds = await getRounds();
+        if (rounds && rounds.length > 0) {
+          setLatestRound(rounds[rounds.length - 1]); // Oletetaan, että viimeisin kierros on viimeinen listassa
+        }
+      } catch (error) {
+        console.error("Virhe viimeisimmän kierroksen hakemisessa:", error);
+      }
+    };
 
-export default function ViimeisinKierros() {
-    const [kierros, setKierros] = useState<Kierros | null>(null);
-    const [kenttaTiedot, setKenttaTiedot] = useState<Record<number, Vayla> | null>(null);
-    const [otsikko, setOtsikko] = useState("Viime kierros");
+    fetchLatestRound();
+  }, []);
 
-    useEffect(() => {
-        const fetchRound = async () => {
-            try {
-                const currentRound = await AsyncStorage.getItem("currentRound");
-        
-                if (currentRound) {
-                    console.log("Kuluva kierros löytyi AsyncStoragesta:", currentRound);
-                    const parsedRound = JSON.parse(currentRound);
-        
-                    if (parsedRound.course_name && parsedRound.club_name && parsedRound.scores) {
-                        setKierros(parsedRound);
-                        setOtsikko("Kuluva kierros");
-                        await fetchKenttaTiedot(parsedRound.club_name, parsedRound.course_name);
-                        return;
-                    } else {
-                        console.warn("Kuluva kierros puutteellinen:", parsedRound);
-                    }
-                }
-        
-                // Jos ei löytynyt AsyncStoragesta, haetaan viimeisin kierros tietokannasta
-                const lastRound = await getLastRound();
-                if (lastRound) {
-                    console.log("Viimeisin kierros löytyi tietokannasta:", lastRound);
-                    const parsedRound = {
-                        course_name: lastRound.course_name,
-                        club_name: lastRound.club_name,
-                        date: lastRound.date,
-                        scores: JSON.parse(lastRound.scores),
-                    };
-        
-                    if (parsedRound.course_name && parsedRound.club_name && parsedRound.scores) {
-                        // Haetaan API:sta vastaavan kentän tiedot
-                        const kenttaData = await fetchKenttaTiedot(parsedRound.club_name, parsedRound.course_name);
-                        if (kenttaData) {
-                            parsedRound.vaylat = kenttaData.vaylat; // Lisätään puuttuva väylätieto
-                        }
-        
-                        setKierros(parsedRound);
-                        setOtsikko("Viime kierros");
-                    } else {
-                        console.warn("Viimeisin kierros puutteellinen:", parsedRound);
-                    }
-                } else {
-                    console.log("Ei löytynyt tallennettuja kierroksia.");
-                }
-            } catch (error) {
-                console.error("Virhe kierroksen haussa:", error);
-            }
-        };
+  // Laske parin ero vain pelatuista väylistä
+  const calculateParDifference = () => {
+    if (latestRound?.holes) {
+      const totalStrokes = latestRound.holes.reduce((sum: number, hole: any) => {
+        return hole.strokes ? sum + hole.strokes : sum;
+      }, 0);
+      const totalPar = latestRound.holes.reduce((sum: number, hole: any) => {
+        return hole.strokes ? sum + hole.par : sum;
+      }, 0);
+      return totalStrokes - totalPar;
+    }
+    return 0;
+  };
 
-        const fetchKenttaTiedot = async (clubName: string, courseName: string) => {
-            try {
-                const response = await fetch("api/kenttapi"); // 🟢 Vaihda API:n oikea URL
-                const data = await response.json();
+  // Laske eri tulosten määrät
+  const calculateStats = () => {
+    const stats = {
+      eagle: 0,
+      birdie: 0,
+      par: 0,
+      bogey: 0,
+      doubleBogeyOrWorse: 0,
+    };
 
-                // Etsitään oikea kenttä API:sta
-                const foundCourse = data.find(
-                    (course: any) => course.club_name === clubName && course.course_name === courseName
-                );
-
-                if (foundCourse) {
-                    setKenttaTiedot(foundCourse.vaylat);
-                }
-            } catch (error) {
-                console.error("Virhe kenttätietojen haussa API:sta:", error);
-            }
-        };
-
-        fetchRound();
-    }, []);
-
-    if (!kierros) {
-        return <Text style={styles.noData}>Ei pelattuja kierroksia</Text>;
+    if (latestRound?.holes) {
+      latestRound.holes.forEach((hole: any) => {
+        if (hole.strokes) {
+          const strokeDifference = hole.strokes - hole.par;
+          if (strokeDifference <= -2) stats.eagle += 1;
+          else if (strokeDifference === -1) stats.birdie += 1;
+          else if (strokeDifference === 0) stats.par += 1;
+          else if (strokeDifference === 1) stats.bogey += 1;
+          else stats.doubleBogeyOrWorse += 1;
+        }
+      });
     }
 
-    if (!kenttaTiedot) {
-        return <Text style={styles.loading}>Ladataan kenttätietoja...</Text>;
-    }
+    return stats;
+  };
 
-    // Lasketaan yhteenvedon tilastot
-    const totalPutts = kierros.scores.reduce((sum, hole) => sum + hole.putts, 0);
-    const totalStrokes = kierros.scores.reduce((sum, hole) => sum + hole.strokes, 0);
+  // Päivitetty vuokaavio
+  const stats = calculateStats();
 
-    // Lasketaan kokonaispar API:sta haettujen tietojen perusteella
-    const totalPar = Object.values(kenttaTiedot).reduce((sum, hole) => sum + hole.par, 0);
-
-    const girPercentage = (kierros.scores.filter(hole => hole.gir).length / kierros.scores.length) * 100;
-
-    return (
-        <View style={styles.container}>
-            <Text style={styles.title}>{otsikko}</Text>
-            <Text style={styles.course}>
-                {kierros.club_name} - {kierros.course_name}
+  return (
+    <View style={styles.container}>
+      <View style={styles.statsContainer}>
+        <Text style={styles.title}>Viimeisin kierros</Text>
+        {latestRound ? (
+          <>
+            <Text style={styles.courseName}>{latestRound.course_name}</Text>
+            <Text style={styles.date}>{new Date(latestRound.date).toLocaleDateString("fi-FI")}</Text>
+            <Text style={styles.result}>
+              {calculateParDifference() > 0 ? "+" : ""}
+              {calculateParDifference()} lyöntiä parista
             </Text>
-            <Text style={styles.date}>{new Date(kierros.date).toLocaleDateString()}</Text>
+          </>
+        ) : (
+          <Text style={styles.loadingText}>Ladataan viimeisintä kierrosta...</Text>
+        )}
+      </View>
 
-            <View style={styles.statsContainer}>
-                <Text style={styles.stats}>Puttien keskiarvo: {(totalPutts / kierros.scores.length).toFixed(1)}</Text>
-                <Text style={styles.stats}>Tulos suhteessa pariin: {totalStrokes - totalPar}</Text>
-                <Text style={styles.stats}>GIR: {girPercentage.toFixed(1)}%</Text>
-            </View>
-        </View>
-    );
+      <View style={styles.chartContainer}>
+        {/* Vuokaavio */}
+        {stats.eagle > 0 && (
+          <View style={styles.chartItem}>
+            <Text style={styles.chartLabel}>Eagle ({stats.eagle})</Text>
+            <View style={[styles.chartLine, { flex: stats.eagle }]} />
+          </View>
+        )}
+        {stats.birdie > 0 && (
+          <View style={styles.chartItem}>
+            <Text style={styles.chartLabel}>Birdie ({stats.birdie})</Text>
+            <View style={[styles.chartLine, { flex: stats.birdie }]} />
+          </View>
+        )}
+        {stats.par > 0 && (
+          <View style={styles.chartItem}>
+            <Text style={styles.chartLabel}>Par ({stats.par})</Text>
+            <View style={[styles.chartLine, { flex: stats.par }]} />
+          </View>
+        )}
+        {stats.bogey > 0 && (
+          <View style={styles.chartItem}>
+            <Text style={styles.chartLabel}>Bogey ({stats.bogey})</Text>
+            <View style={[styles.chartLine, { flex: stats.bogey }]} />
+          </View>
+        )}
+        {stats.doubleBogeyOrWorse > 0 && (
+          <View style={styles.chartItem}>
+            <Text style={styles.chartLabel}>Double Bogey + ({stats.doubleBogeyOrWorse})</Text>
+            <View style={[styles.chartLine, { flex: stats.doubleBogeyOrWorse }]} />
+          </View>
+        )}
+      </View>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        backgroundColor: "#FFF",
-        padding: 15,
-        borderRadius: 10,
-        marginVertical: 10,
-        elevation: 3,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 5,
-        alignItems: "center",
-    },
-    title: {
-        fontSize: 18,
-        fontWeight: "bold",
-        marginBottom: 5,
-    },
-    course: {
-        fontSize: 16,
-        fontWeight: "600",
-    },
-    date: {
-        fontSize: 14,
-        color: "#555",
-    },
-    statsContainer: {
-        marginTop: 10,
-    },
-    stats: {
-        fontSize: 14,
-        fontWeight: "500",
-    },
-    noData: {
-        textAlign: "center",
-        fontSize: 16,
-        fontWeight: "500",
-        color: "#555",
-        marginTop: 20,
-    },
-    loading: {
-        textAlign: "center",
-        fontSize: 14,
-        color: "#777",
-        marginTop: 10,
-    },
+  container: {
+    flexDirection: "row",
+    width: "90%",
+    padding: 12,
+    marginBottom: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)', // Läpinäkyvä tausta
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'white', // Valkoinen reunaviiva
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 3,
+    alignItems: 'center',
+    justifyContent: 'space-between', // Tasataan tekstit vasemmalle ja diagrammi oikealle
+  },
+  statsContainer: {
+    flexDirection: "column",
+    alignItems: "flex-start", // Tekstit vasemmalle
+    width: "60%",
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 8,
+  },
+  courseName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  date: {
+    fontSize: 14,
+    color: 'white',
+    marginVertical: 4,
+  },
+  result: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: 'white',
+    marginTop: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: 'white',
+  },
+  chartContainer: {
+    marginTop: 12,
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
+    width: "40%",
+  },
+  chartItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  chartLabel: {
+    fontSize: 12,
+    color: 'white',
+    marginRight: 8,
+  },
+  chartLine: {
+    backgroundColor: 'white',
+    height: 4,
+    borderRadius: 2,
+    minWidth: 20, // Minimileveys
+  },
 });

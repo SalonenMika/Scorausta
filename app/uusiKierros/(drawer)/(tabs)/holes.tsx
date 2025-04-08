@@ -6,7 +6,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import NumberPad from "@/components/CircleButton";
 import StatBox from "@/components/StatBox";
 import VaylaInfo from "@/components/VaylaInfo";
-import { saveRound } from "@/utils/database";
+
 
 interface Hole {
     par: number;
@@ -26,11 +26,6 @@ interface Score {
     gir: boolean;
 }
 
-interface HoleWithScore extends Hole {
-    strokes: number | null;
-    putts: number | null;
-    gir: boolean;
-}
 
 export default function HoleScreen() {
     const { kentta } = useLocalSearchParams();
@@ -140,31 +135,6 @@ export default function HoleScreen() {
         } else if (field === "putts") {
             setActiveStat(null); // Poistetaan korostus
         }
-    };
-
-    const handleSaveRound = () => {
-        if (!course) return;
-    
-        // Luo väylien tiedot
-        const vaylat = Object.keys(course.vaylat).reduce((acc, holeNumber) => {
-            const holeIndex = parseInt(holeNumber); // Muutetaan holeNumber numeroon
-            const hole = course.vaylat[holeIndex];
-            const score = scores[holeIndex] || {}; // Käytetään holeIndex:ä myös scoresissa
-            acc[holeIndex] = {
-                ...hole, // Lisätään alkuperäiset väylän tiedot
-                strokes: score.strokes || null,
-                putts: score.putts || null,
-                gir: score.gir || false,
-            };
-            return acc;
-        }, {} as Record<number, HoleWithScore>);
-    
-        console.log("Tallennettavat tiedot:");
-        console.log("Kenttä:", course.course_name, course.club_name);
-        console.log("Väylät ja tilastot:", vaylat);
-        console.log("Pisteet:", scores);
-        // Tallenna kierros ja väylät SQLite:hen
-        saveRound(course.course_name, course.club_name, scores, vaylat);
     };
 
     if (!course) {
