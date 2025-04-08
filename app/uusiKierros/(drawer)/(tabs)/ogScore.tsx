@@ -108,10 +108,14 @@ export default function ScorecardScreen() {
         
         let cellStyle = {};
         if (!isNet || showNetColorCoding) {
-            if (relativeScore <= -1) {
+            if (relativeScore == -1) {
                 cellStyle = styles.scoreBirdie;
-            } else if (relativeScore >= 1) {
+            } else if (relativeScore == 1 ) {
                 cellStyle = styles.scoreBogey;
+            } else if (relativeScore >= 2) {
+                cellStyle = styles.scoreTuplaBogey;
+            } else if (relativeScore <= 2) {
+                cellStyle = styles.scoreKotka;
             }
         }
         
@@ -354,8 +358,16 @@ const styles = StyleSheet.create({
         backgroundColor: "#add8e6",
         borderRadius: 13,
     },
+    scoreKotka: {
+        backgroundColor: "#78a1af",
+        borderRadius: 13,
+    },
     scoreBogey: {
         backgroundColor: "#ffcccb",
+        borderRadius: 3,
+    },
+    scoreTuplaBogey: {
+        backgroundColor: "#d99f9e",
         borderRadius: 3,
     },
 });
