@@ -10,7 +10,7 @@ export default function StatsBox() {
       try {
         const rounds = await getRounds();
         if (rounds && rounds.length > 0) {
-          setLatestRound(rounds[rounds.length - 1]); // Oletetaan, että viimeisin kierros on viimeinen listassa
+          setLatestRound(rounds[0]); // Oletetaan, että viimeisin kierros on viimeinen listassa
         }
       } catch (error) {
         console.error("Virhe viimeisimmän kierroksen hakemisessa:", error);

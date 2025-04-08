@@ -1,17 +1,24 @@
 import React, { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Link } from 'expo-router';
+import { Link, useFocusEffect } from 'expo-router';
 import { initDatabase } from "@/utils/database";
 import Button from '@/components/Button';
 import ViimeisinKierros from '@/components/ViimeisinKierros';
 import { LinearGradient } from 'expo-linear-gradient';  // Gradientti reunoille
 
 export default function Index() {
+    const [refreshKey, setRefreshKey] = React.useState(0);
 
     useEffect(() => {
         initDatabase();
     }, []);
+
+    useFocusEffect(
+        React.useCallback(() => {
+            setRefreshKey(prevKey => prevKey + 1);
+        }, [])
+    );
 
     return (
         <GestureHandlerRootView style={styles.container}>
@@ -24,7 +31,7 @@ export default function Index() {
                 </LinearGradient>
             </View>
             {/* StatsBox komponentti lisätty ylös */}
-            <ViimeisinKierros />
+            <ViimeisinKierros key={refreshKey}/>
             <View style={styles.buttonsContainer}>
                 <View style={styles.row}>
                     <View style={styles.buttonContainer}>

@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface Hole {
@@ -27,21 +27,30 @@ export default function ScorecardScreen() {
     const [scores, setScores] = useState<Record<number, Score>>({});
     const [showNetColorCoding, setShowNetColorCoding] = useState(false); // Uusi tila net-värikoodaukselle
 
-    useEffect(() => {
-        const loadSavedRound = async () => {
-            try {
-                const savedRound = await AsyncStorage.getItem("currentRound");
-                if (savedRound) {
-                    const { savedCourse, savedScores } = JSON.parse(savedRound);
-                    setCourse(savedCourse);
-                    setScores(savedScores);
+    useFocusEffect(
+        useCallback(() => {
+            let isActive = true;
+
+            const loadSavedRound = async () => {
+                try {
+                    const savedRound = await AsyncStorage.getItem("currentRound");
+                    if (savedRound && isActive) {
+                        const { savedCourse, savedScores } = JSON.parse(savedRound);
+                        setCourse(savedCourse);
+                        setScores(savedScores);
+                    }
+                } catch (error) {
+                    console.error("Virhe ladattaessa tallennettua kierrosta:", error);
                 }
-            } catch (error) {
-                console.error("Virhe ladattaessa tallennettua kierrosta:", error);
-            }
-        };
-        loadSavedRound();
-    }, []);
+            };
+
+            loadSavedRound();
+
+            return () => {
+                isActive = false;
+            };
+        }, [])
+    );
 
     if (!course) {
         return (

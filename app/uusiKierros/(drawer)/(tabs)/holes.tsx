@@ -1,12 +1,12 @@
 ﻿import { useLocalSearchParams } from "expo-router";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import NumberPad from "@/components/CircleButton";
 import StatBox from "@/components/StatBox";
 import VaylaInfo from "@/components/VaylaInfo";
-
 
 interface Hole {
     par: number;
@@ -26,64 +26,51 @@ interface Score {
     gir: boolean;
 }
 
-
 export default function HoleScreen() {
     const { kentta } = useLocalSearchParams();
     const [course, setCourse] = useState<Course | null>(null);
     const [currentHoleIndex, setCurrentHoleIndex] = useState(1);
     const [scores, setScores] = useState<Record<number, Score>>({});
     const [activeStat, setActiveStat] = useState<"strokes" | "putts" | null>("strokes");
-    
 
-    useEffect(() => {
-        if (kentta) {
-            setCourse(JSON.parse(kentta as string));
-        }
-    }, [kentta]);
+    // Ladataan data kun sivu tulee näkyviin (myös tabbar-vaihdoissa)
+    useFocusEffect(
+        useCallback(() => {
+            let isActive = true;
 
-    useEffect(() => {
-        const loadSavedRound = async () => {
-            try {
-                const savedRound = await AsyncStorage.getItem("currentRound");
-                if (savedRound) {
-                    const { savedCourse, savedScores, savedHoleIndex } = JSON.parse(savedRound);
-                    setCourse(savedCourse);
-                    setScores(savedScores);
-                    setCurrentHoleIndex(savedHoleIndex);
+            const loadData = async () => {
+                try {
+                    if (kentta && isActive) {
+                        setCourse(JSON.parse(kentta as string));
+                    }
+
+                    const savedRound = await AsyncStorage.getItem("currentRound");
+                    const shouldEndRound = await AsyncStorage.getItem("endRoundTrigger");
+
+                    if (savedRound && isActive) {
+                        const { savedCourse, savedScores, savedHoleIndex } = JSON.parse(savedRound);
+                        setCourse(savedCourse || JSON.parse(kentta as string));
+                        setScores(savedScores);
+                        setCurrentHoleIndex(savedHoleIndex);
+                    }
+
+                    if (shouldEndRound === "true" && isActive) {
+                        await AsyncStorage.removeItem("endRoundTrigger");
+                    }
+                } catch (error) {
+                    console.error("Virhe ladattaessa dataa:", error);
                 }
-            } catch (error) {
-                console.error("Virhe ladattaessa tallennettua kierrosta:", error);
-            }
-        };
-    
-        loadSavedRound();
-    }, []);
+            };
 
-    useEffect(() => {
-        const loadSavedRound = async () => {
-            try {
-                const savedRound = await AsyncStorage.getItem("currentRound");
-                const shouldEndRound = await AsyncStorage.getItem("endRoundTrigger");
-    
-                if (savedRound) {
-                    const { savedCourse, savedScores, savedHoleIndex } = JSON.parse(savedRound);
-                    setCourse(savedCourse);
-                    setScores(savedScores);
-                    setCurrentHoleIndex(savedHoleIndex);
-                }
-    
-                if (shouldEndRound === "true") {
-                    await AsyncStorage.removeItem("endRoundTrigger");
-                    
-                }
-            } catch (error) {
-                console.error("Virhe ladattaessa tallennettua kierrosta:", error);
-            }
-        };
-    
-        loadSavedRound();
-    }, []);
+            loadData();
 
+            return () => {
+                isActive = false;
+            };
+        }, [kentta])
+    );
+
+    // Tallennetaan muutokset AsyncStorageen
     useEffect(() => {
         const saveCurrentRound = async () => {
             if (course) {
@@ -101,22 +88,21 @@ export default function HoleScreen() {
                 }
             }
         };
-    
-        saveCurrentRound();
-    }, [scores, currentHoleIndex]);
 
+        saveCurrentRound();
+    }, [scores, currentHoleIndex, course]);
 
     const handleNextHole = () => {
         if (course && currentHoleIndex < Object.keys(course.vaylat).length) {
             setCurrentHoleIndex(currentHoleIndex + 1);
-            setActiveStat("strokes"); // Asetetaan lyönnit ensin aktiiviseksi
+            setActiveStat("strokes");
         }
     };
 
     const handlePreviousHole = () => {
         if (currentHoleIndex > 1) {
             setCurrentHoleIndex(currentHoleIndex - 1);
-            setActiveStat("strokes"); // Asetetaan lyönnit ensin aktiiviseksi
+            setActiveStat("strokes");
         }
     };
 
@@ -129,11 +115,10 @@ export default function HoleScreen() {
             },
         }));
 
-        // Vaihdetaan aktiivinen StatBox
         if (field === "strokes") {
-            setActiveStat("putts"); // Siirrytään automaattisesti putteihin
+            setActiveStat("putts");
         } else if (field === "putts") {
-            setActiveStat(null); // Poistetaan korostus
+            setActiveStat(null);
         }
     };
 
@@ -148,7 +133,6 @@ export default function HoleScreen() {
     const currentHole = course.vaylat[currentHoleIndex];
     const currentScore = scores[currentHoleIndex] || {};
 
-    // ** Lasketaan kokonaistulokset vain annetuille arvoille **
     const playedHoles = Object.values(scores).filter((hole) => hole.strokes !== undefined);
     const totalStrokes = playedHoles.reduce((sum, hole) => sum + (hole.strokes || 0), 0);
     const totalPutts = playedHoles.reduce((sum, hole) => sum + (hole.putts || 0), 0);
@@ -160,7 +144,6 @@ export default function HoleScreen() {
 
     return (
         <View style={styles.container}>
-            {/* Väylän tiedot */}
             <VaylaInfo 
                 currentHoleIndex={currentHoleIndex}
                 totalHoles={Object.keys(course.vaylat).length}
@@ -169,7 +152,6 @@ export default function HoleScreen() {
                 onNext={handleNextHole}
             />
 
-            {/* Lyöntitiedot */}
             <View style={styles.statsContainer}>
                 <StatBox 
                     label="Lyönnit" 
@@ -187,11 +169,10 @@ export default function HoleScreen() {
                     label="GIR" 
                     value={currentScore.gir ? "✔️" : "❌"} 
                     onPress={() => updateScore("gir", !currentScore.gir)}
-                    isActive={false} // Ei tarvitse aktiivisuutta
+                    isActive={false}
                 />
             </View>
 
-            {/* Kokonaistilastot */}
             <View style={styles.overallStats}>
                 <Text style={styles.overallText}>Tulos suhteessa pariin: {totalRelativeScore >= 0 ? `+${totalRelativeScore}` : totalRelativeScore}</Text>
                 <Text style={styles.overallText}>Kokonaislyönnit: {totalStrokes}</Text>
@@ -199,16 +180,14 @@ export default function HoleScreen() {
                 <Text style={styles.overallText}>GIR: {girPercentage}%</Text>
             </View>
 
-            {/* Numeronäppäimistö */}
             {activeStat && <NumberPad onPress={(value) => {
                 if (typeof value === "number") {
                     updateScore(activeStat as "strokes" | "putts", value);
-            }
+                }
             }} />}
         </View>
     );
 }
-
 
 const styles = StyleSheet.create({
     container: {
@@ -224,7 +203,6 @@ const styles = StyleSheet.create({
         width: "100%",
         marginVertical: 10,
     },
-
     overallStats: {
         marginTop: 20,
         alignItems: "center",
@@ -235,7 +213,7 @@ const styles = StyleSheet.create({
         marginBottom: 5,
     },
     statBoxActive: {
-        backgroundColor: "#FFD700", // Korostettu väri
+        backgroundColor: "#FFD700",
     },
     statBoxInactive: {
         backgroundColor: "#FFF",
