@@ -114,7 +114,7 @@ export default function ScorecardScreen() {
                 cellStyle = styles.scoreBogey;
             } else if (relativeScore >= 2) {
                 cellStyle = styles.scoreTuplaBogey;
-            } else if (relativeScore <= 2) {
+            } else if (relativeScore <= -2) {
                 cellStyle = styles.scoreKotka;
             }
         }

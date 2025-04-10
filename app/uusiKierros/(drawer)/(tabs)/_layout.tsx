@@ -63,6 +63,12 @@ export default function _layout() {
           headerTitle: "Tuloskortti",
         }}
       />
+      <Tabs.Screen
+        name="videoRecorder"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

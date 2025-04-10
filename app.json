@@ -28,7 +28,7 @@
       [
         "expo-router",
         {
-        "origin": "http://localhost:8081/api/kenttapi"
+          "origin": "http://localhost:8081/api/kenttapi"
         }
       ],
       [
@@ -40,8 +40,16 @@
           "backgroundColor": "#ffffff"
         }
       ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Tarvitsemme pääsyn kameraan videoiden kuvaamista varten.",
+          "microphonePermission": "Tarvitsemme pääsyn mikrofoniin videoiden äänen tallentamista varten."
+        }
+      ],
       "expo-sqlite",
-      "expo-asset"
+      "expo-asset",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true
